@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>XV Años | Confirmación</title>
+<style>
+body{margin:0;font-family:Arial,sans-serif;background:#faf5ff;color:#38223f}.wrap{max-width:720px;margin:auto;padding:20px}
+.card{background:white;padding:24px;margin:18px 0;border-radius:18px;box-shadow:0 5px 20px #0001}h1{text-align:center;color:#71358a}
+label{display:block;font-weight:bold;margin:13px 0 6px}input,select,button{width:100%;padding:12px;border-radius:9px;border:1px solid #ddd;font-size:16px;box-sizing:border-box}
+button{background:#71358a;color:white;border:0;font-weight:bold;margin-top:15px;cursor:pointer}.hidden{display:none}.code{font-size:27px;font-weight:bold;letter-spacing:3px;text-align:center;padding:18px;background:#f3e7f8;border-radius:12px;margin:15px 0}
+.ok{padding:15px;border-radius:10px;background:#e3f7e9;color:#175c29}.bad{padding:15px;border-radius:10px;background:#fff0d0;color:#705300}
+nav{display:flex;gap:8px}nav button{margin:0}.small{font-size:13px;color:#777}
+table{width:100%;border-collapse:collapse}td,th{padding:9px;border-bottom:1px solid #eee;text-align:left}
+</style>
+</head>
+<body><div class="wrap">
+<h1>💜 XV AÑOS</h1>
+<div id="registro" class="card">
+<h2>Confirmación de asistencia</h2>
+<label>Nombre del invitado principal</label><input id="nombre" placeholder="Nombre completo">
+<label>¿Asistirás?</label><select id="asiste"><option value="true">Sí, asistiré</option><option value="false">No podré asistir</option></select>
+<div id="acom"><label>Acompañantes (máximo 3)</label><select id="cantidad"><option>0</option><option>1</option><option>2</option><option>3</option></select><div id="campos"></div></div>
+<button onclick="registrar()">Confirmar asistencia</button><div id="resultado"></div>
+</div>
+
+<div class="card"><h2>🔎 Verificar entrada</h2>
+<p class="small">Esta sección es para el personal de la entrada.</p>
+<input id="codigo" placeholder="Código, ej. XV-A7K29P"><button onclick="verificar()">Verificar código</button><div id="ver"></div>
+</div>
+
+<div class="card"><h2>📋 Panel del evento</h2>
+<p class="small">En la versión conectada, este panel requiere una clave de administrador.</p>
+<input id="adminKey" type="password" placeholder="Clave de administrador"><button onclick="cargarPanel()">Entrar al panel</button>
+<div id="panel"></div>
+</div>
+</div>
+<script>
+const API_URL="REEMPLAZAR_CON_URL_DEL_BACKEND";
+function campos(){let n=+cantidad.value;camposEl.innerHTML='';for(let i=1;i<=n;i++)camposEl.innerHTML+=`<label>Acompañante ${i}</label><input class="acompanante">`}
+const cantidad=document.getElementById('cantidad'),camposEl=document.getElementById('campos');cantidad.onchange=campos;campos();
+async function registrar(){
+ const nombre=document.getElementById('nombre').value.trim(), asiste=document.getElementById('asiste').value==="true";
+ const acompanantes=[...document.querySelectorAll('.acompanante')].map(x=>x.value.trim()).filter(Boolean);
+ if(!nombre)return alert("Escribe el nombre.");
+ if(acompanantes.length>3)return alert("Máximo 3 acompañantes.");
+ const r=await fetch(API_URL+"/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({nombre,asiste,acompanantes})});
+ const d=await r.json();const out=document.getElementById('resultado');
+ if(!r.ok){out.innerHTML=`<div class="bad">${d.error||"No se pudo registrar."}</div>`;return}
+ if(!asiste){out.innerHTML='<div class="ok">Tu respuesta quedó registrada. Gracias por avisar.</div>';return}
+ out.innerHTML=`<div class="ok"><h3>¡Confirmado! 💜</h3><p>Guarda este código:</p><div class="code">${d.codigo}</div><div id="qr"></div><p>Presenta este código o QR en la entrada.</p></div>`;
+ generarQR(d.codigo);
+}
+function generarQR(code){const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";s.onload=()=>new QRCode(document.getElementById("qr"),{text:location.origin+location.pathname+"?codigo="+encodeURIComponent(code),width:180,height:180});document.head.appendChild(s)}
+async function verificar(){const codigo=document.getElementById('codigo').value.trim().toUpperCase();if(!codigo)return;
+ const r=await fetch(API_URL+"/checkin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({codigo,adminKey:document.getElementById('adminKey').value})});
+ const d=await r.json();document.getElementById('ver').innerHTML=r.ok?`<div class="ok"><b>✅ Entrada autorizada</b><br>${d.nombre}<br>Acompañantes: ${d.acompanantes}</div>`:`<div class="bad">❌ ${d.error}</div>`}
+async function cargarPanel(){const key=document.getElementById('adminKey').value;const r=await fetch(API_URL+"/guests",{headers:{adminKey:key}});const d=await r.json();if(!r.ok){panel.innerHTML='<div class="bad">Clave incorrecta.</div>';return}
+panel.innerHTML=`<p><b>Invitados:</b> ${d.total} &nbsp; <b>Personas:</b> ${d.personas}</p><table><tr><th>Nombre</th><th>Acomp.</th><th>Entrada</th></tr>${d.guests.map(x=>`<tr><td>${x.nombre}</td><td>${x.acompanantes}</td><td>${x.entrada?'🟢':'⚪'}</td></tr>`).join('')}</table>`}
+</script></body></html>
